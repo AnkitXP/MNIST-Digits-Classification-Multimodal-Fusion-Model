@@ -1,5 +1,6 @@
 import os, argparse
 import numpy as np
+import pandas as pd
 from Model import MyModel
 from DataLoader import load_train_data, train_valid_split, load_testing_images
 from Configure import model_configs, training_configs
@@ -43,7 +44,8 @@ def main(args, model_configs):
 		x_test_wr, x_test_sp = load_testing_images(model_configs.data_dir)
  
 		predictions = model.predict_prob(x_test_wr, x_test_sp)
-		np.save(model_configs.result_dir + 'predictions.npy', predictions)
+		predictions_df = pd.DataFrame({'row_id': range(len(predictions)), 'label': predictions})
+		predictions_df.to_csv(model_configs.result_dir + 'predictions.csv', index=False)
 
 if __name__ == '__main__':
 	

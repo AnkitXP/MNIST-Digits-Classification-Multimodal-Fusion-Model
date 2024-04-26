@@ -7,7 +7,6 @@ from DataLoader import custom_dataloader
 import timeit
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from torch.optim.lr_scheduler import LambdaLR
 import math
 from sklearn.metrics import classification_report
 
@@ -18,25 +17,6 @@ import gc
 
 """This script defines the training, validation and testing process.
 """
-
-class WarmupCosineSchedule(LambdaLR):
-    """ Linear warmup and then cosine decay.
-        Linearly increases learning rate from 0 to 1 over `warmup_steps` training steps.
-        Decreases learning rate from 1. to 0. over remaining `t_total - warmup_steps` steps following a cosine curve.
-        If `cycles` (default=0.5) is different from default, learning rate follows cosine function after warmup.
-    """
-    def __init__(self, optimizer, warmup_steps, t_total, cycles=.5, last_epoch=-1):
-        self.warmup_steps = warmup_steps
-        self.t_total = t_total
-        self.cycles = cycles
-        super(WarmupCosineSchedule, self).__init__(optimizer, self.lr_lambda, last_epoch=last_epoch)
-
-    def lr_lambda(self, step):
-        if step < self.warmup_steps:
-            return float(step) / float(max(1.0, self.warmup_steps))
-        # progress after warmup
-        progress = float(step - self.warmup_steps) / float(max(1, self.t_total - self.warmup_steps))
-        return max(0.0, 0.5 * (1. + math.cos(math.pi * float(self.cycles) * 2.0 * progress)))
 
 class MyModel(object):
 
@@ -57,7 +37,7 @@ class MyModel(object):
         self.optimizer = torch.optim.AdamW(self.network.parameters(),
                                           lr = training_configs.learning_rate,  
                                           weight_decay = training_configs.weight_decay)
-        self.scheduler = WarmupCosineSchedule(self.optimizer, warmup_steps = 5, t_total=training_configs.num_epochs)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=100, eta_min=1e-5)
         
         train_loss_history = []
         val_loss_history = []
@@ -134,14 +114,13 @@ class MyModel(object):
             print("-"*30)
             
             self.scheduler.step()
-            self.plot_metrics(self.model_configs.result_dir, train_loss_history, val_loss_history, train_accuracy_history, val_accuracy_history, learning_rate_history)
 
             if (epoch) % training_configs.save_interval == 0:
                 self.save(epoch)
 
         stop = timeit.default_timer()
         print(f"Training Time: {stop - start : .2f}s")
-        
+        self.plot_metrics(self.model_configs.result_dir, train_loss_history, val_loss_history, train_accuracy_history, val_accuracy_history, learning_rate_history)
         
 
     def evaluate(self, x_test_wr, x_test_sp, y_test):
@@ -180,12 +159,18 @@ class MyModel(object):
         
         with torch.no_grad():
             for idx, (x_predict_wr, x_predict_sp, _) in enumerate(tqdm(predict_dataloader, position=0, leave=True)):
+
+                
                 current_predict_wr = torch.tensor(x_predict_wr, dtype=torch.float32).to(self.model_configs.device)
                 current_predict_sp = torch.tensor(x_predict_sp, dtype=torch.float32).to(self.model_configs.device)
-                probabilities = torch.argmax(self.network(current_predict_wr, current_predict_sp))
-                predict_proba_final.extend(probabilities.cpu().detach())
 
-        return np.stack(predict_proba_final, axis=0)
+                probabilities = self.network(current_predict_wr, current_predict_sp)
+                predict_proba_final.extend(probabilities.cpu().detach())
+                
+            predict_proba_final = torch.stack(predict_proba_final, axis=0)           
+            predictions = torch.argmax(predict_proba_final, dim=1)
+            
+        return predictions
 
     def save(self, epoch):
         checkpoint_path = os.path.join(self.model_configs.save_dir, self.model_configs.checkpoint_name + '-%d.ckpt'%int(epoch))
