@@ -52,25 +52,19 @@ def load_testing_images(data_dir):
 def custom_dataloader(data_wr, data_sp, label, batch_size, train):
 
     train_wr_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomResizedCrop(size=(28, 28), scale=(0.8, 1.0)),
+        transforms.RandomRotation(10),
         transforms.ToTensor(),
-        # transforms.RandomHorizontalFlip(),
-        # transforms.RandomRotation(10)
-        ])
-    
-    train_sp_transform = transforms.Compose([
-        transforms.ToTensor()
-        ])
-    
-    test_wr_transform = transforms.Compose([
-        transforms.ToTensor()
-        ])
-    
-    test_sp_transform = transforms.Compose([
-        transforms.ToTensor()
+
+
         ])
     
     if train:
-        train_dataset = MNIST(data_wr, data_sp, label, wr_transform=None, sp_transform = None)
+        data_wr = (data_wr * 255).astype(np.uint8)
+        data_wr = data_wr.transpose((0, 2, 3, 1))
+        train_dataset = MNIST(data_wr, data_sp, label, wr_transform=train_wr_transform, sp_transform = None)
         train_loader = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=model_configs.num_workers)
         return train_loader
 

@@ -3,8 +3,8 @@ import numpy as np
 from Model import MyModel
 from DataLoader import load_train_data, train_valid_split, load_testing_images
 from Configure import model_configs, training_configs
-from ImageUtils import visualize
 import torch
+import random
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -12,10 +12,14 @@ warnings.filterwarnings('ignore')
 def configure():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode", type=str, help="train, test or predict", required=True)
-	parser.add_argument("--load", type=str, help="model checkpoint load path", default='mnist-classifier.ckpt')
+	parser.add_argument("--load", type=str, help="model checkpoint load path", default='mnist-classifier-with-augmentation-10.ckpt')
 	return parser.parse_args()
 
 def main(args, model_configs):
+
+	torch.manual_seed(model_configs.random_seed)
+	np.random.seed(model_configs.random_seed)
+	random.seed(model_configs.random_seed)
 
 	model = MyModel(model_configs)
 

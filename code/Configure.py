@@ -6,29 +6,26 @@ class dotdict(dict):
 
 
 model_configs = dotdict({
-	"name": 'MyModel',
+	"checkpoint_name": 'mnist-classifier-with-augmentation',
 	"save_dir": '../saved_models/',
     "data_dir": '../data/',
     "result_dir": '../results/',
-    "test_ratio": 0.1,
-    "val_ratio": 0.1,
+    "test_ratio": 0.05,
+    "val_ratio": 0.05,
     "num_workers" : 8,     
     "img_size": 32,
     "in_channels": 3,
-    "patch_size": 2,
-    "num_encoders": 12,
-    "embed_dropout": 0.,
-    "transformer_dropout": 0.,
-    "classifier_dropout": 0.3,
     "num_classes": 10,
+    "num_layers": 2,
+    "embed_channels" : 128,
     "hidden_channels" : 256,
-    "head_channels" : 32
+    "random_seed" : 42
 })
 
 training_configs = dotdict({
-    "num_epochs": 100,
+    "num_epochs": 50,
 	"learning_rate": 1e-3,
-    "batch_size": 128,
-    "save_interval": 20,
+    "batch_size": 64,
+    "save_interval": 10,
     "weight_decay": 1e-5
 })

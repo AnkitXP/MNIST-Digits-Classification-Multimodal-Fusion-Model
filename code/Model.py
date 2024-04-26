@@ -7,6 +7,9 @@ from DataLoader import custom_dataloader
 import timeit
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from torch.optim.lr_scheduler import LambdaLR
+import math
+from sklearn.metrics import classification_report
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -16,11 +19,30 @@ import gc
 """This script defines the training, validation and testing process.
 """
 
+class WarmupCosineSchedule(LambdaLR):
+    """ Linear warmup and then cosine decay.
+        Linearly increases learning rate from 0 to 1 over `warmup_steps` training steps.
+        Decreases learning rate from 1. to 0. over remaining `t_total - warmup_steps` steps following a cosine curve.
+        If `cycles` (default=0.5) is different from default, learning rate follows cosine function after warmup.
+    """
+    def __init__(self, optimizer, warmup_steps, t_total, cycles=.5, last_epoch=-1):
+        self.warmup_steps = warmup_steps
+        self.t_total = t_total
+        self.cycles = cycles
+        super(WarmupCosineSchedule, self).__init__(optimizer, self.lr_lambda, last_epoch=last_epoch)
+
+    def lr_lambda(self, step):
+        if step < self.warmup_steps:
+            return float(step) / float(max(1.0, self.warmup_steps))
+        # progress after warmup
+        progress = float(step - self.warmup_steps) / float(max(1, self.t_total - self.warmup_steps))
+        return max(0.0, 0.5 * (1. + math.cos(math.pi * float(self.cycles) * 2.0 * progress)))
+
 class MyModel(object):
 
     def __init__(self, model_configs):
         self.model_configs = model_configs
-        self.network = MNIST_Classifier().to(model_configs.device)
+        self.network = MNIST_Classifier(model_configs.embed_channels, model_configs.hidden_channels, model_configs.num_layers, model_configs.num_classes).to(model_configs.device)
       
     def train(self, x_train_wr, x_train_sp, y_train, training_configs, x_valid_wr = None, x_valid_sp = None, y_valid = None):
 
@@ -35,10 +57,13 @@ class MyModel(object):
         self.optimizer = torch.optim.AdamW(self.network.parameters(),
                                           lr = training_configs.learning_rate,  
                                           weight_decay = training_configs.weight_decay)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=training_configs.num_epochs, eta_min = 1e-5)
+        self.scheduler = WarmupCosineSchedule(self.optimizer, warmup_steps = 5, t_total=training_configs.num_epochs)
         
         train_loss_history = []
         val_loss_history = []
+        train_accuracy_history = []
+        val_accuracy_history = []
+        learning_rate_history = []
 
         for epoch in tqdm(range(1, training_configs.num_epochs + 1), position=0, leave=True):
 
@@ -96,18 +121,28 @@ class MyModel(object):
             val_loss = val_running_loss / (idx + 1)
             val_loss_history.append(val_loss)
 
+            train_accuracy = sum(1 for x,y in zip(train_preds_all, train_labels_all) if x == y) / len(train_labels_all)
+            valid_accuracy = sum(1 for x,y in zip(val_preds_all, val_labels_all) if x == y) / len(val_labels_all)
+
+            train_accuracy_history.append(train_accuracy)
+            val_accuracy_history.append(valid_accuracy)
+            learning_rate_history.append(self.scheduler.get_last_lr())
+
             print("-"*30)
             print(f"EPOCH {epoch}: Train Loss {train_loss:.4f}, Valid Loss {val_loss:.4f}")
-            print(f"EPOCH {epoch}: Train Accuracy {sum(1 for x,y in zip(train_preds_all, train_labels_all) if x == y) / len(train_labels_all):.4f}, Valid Accuracy {sum(1 for x,y in zip(val_preds_all, val_labels_all) if x == y) / len(val_labels_all):.4f}")
+            print(f"EPOCH {epoch}: Train Accuracy {train_accuracy:.4f}, Valid Accuracy {valid_accuracy:.4f}")
             print("-"*30)
+            
             self.scheduler.step()
+            self.plot_metrics(self.model_configs.result_dir, train_loss_history, val_loss_history, train_accuracy_history, val_accuracy_history, learning_rate_history)
 
             if (epoch) % training_configs.save_interval == 0:
                 self.save(epoch)
 
         stop = timeit.default_timer()
         print(f"Training Time: {stop - start : .2f}s")
-        self.plot_loss_graphs(self.configs.result_dir, train_loss_history, val_loss_history)
+        
+        
 
     def evaluate(self, x_test_wr, x_test_sp, y_test):
 
@@ -131,7 +166,9 @@ class MyModel(object):
                 test_labels_all.extend(test_labels.cpu().detach())
                 test_preds_all.extend(test_prediction_labels.cpu().detach())
 
-        print(f"Test Accuracy: {np.sum(np.array(test_preds_all) == np.array(test_labels_all))/len(test_labels_all):.2f}")
+        print(f"Test Overall Accuracy: {np.sum(np.array(test_preds_all) == np.array(test_labels_all))/len(test_labels_all):.2f}")
+        result = classification_report(test_labels_all, test_preds_all, labels = list(range(10)))
+        print(result)
 
     def predict_prob(self, x_predict_wr, x_predict_sp):
         print("<===================================================================== Prediction =====================================================================>")
@@ -151,8 +188,8 @@ class MyModel(object):
         return np.stack(predict_proba_final, axis=0)
 
     def save(self, epoch):
-        checkpoint_path = os.path.join(self.configs.save_dir, 'mnist-classifier.ckpt')
-        os.makedirs(self.configs.save_dir, exist_ok=True)
+        checkpoint_path = os.path.join(self.model_configs.save_dir, self.model_configs.checkpoint_name + '-%d.ckpt'%int(epoch))
+        os.makedirs(self.model_configs.save_dir, exist_ok=True)
         torch.save(self.network.state_dict(), checkpoint_path)
         print("Checkpoint created.")
 
@@ -161,20 +198,9 @@ class MyModel(object):
         self.network.load_state_dict(ckpt, strict=True)
         print("Restored model parameters from {}".format(checkpoint_name))
 
-    def plot_loss_graphs(self, result_dir, train_loss_history, val_loss_history):
+    def plot_metrics(self, result_dir, train_loss_history, val_loss_history, train_accuracy_history, val_accuracy_history, learning_rate_history):
         
-        """
-        Save the loss plot as an image.
-
-        Args:
-        - train_loss_history (list): List of training loss values
-        - val_loss_history (list): List of validation loss values
-        - configs: Configuration object containing the path to save the image
-
-        Returns:
-        - None
-        """
-        print(result_dir)
+        # print(result_dir)
         os.makedirs(result_dir, exist_ok=True)
         plt.figure(figsize=(10, 6))
         plt.plot(train_loss_history, label='Train Loss', color='blue')
@@ -185,5 +211,27 @@ class MyModel(object):
         plt.legend()
         plt.grid(True)
         
-        plt.savefig(os.path.join(result_dir, 'loss_plot.png'))
+        plt.savefig(os.path.join(result_dir, self.model_configs.checkpoint_name +'_loss_plot.png'))
+        plt.close()
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(train_accuracy_history, label='Train Accuracy', color='blue')
+        plt.plot(val_accuracy_history, label='Validation Accuracy', color='orange')
+        plt.title('Training and Validation Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.grid(True)
+
+        plt.savefig(os.path.join(result_dir, self.model_configs.checkpoint_name +'_accuracy_plot.png'))
+        plt.close()
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(learning_rate_history,)
+        plt.title('Learning Rate')
+        plt.xlabel('Epochs')
+        plt.ylabel('Learning Rate')
+        plt.grid(True)
+
+        plt.savefig(os.path.join(result_dir, self.model_configs.checkpoint_name + '_learning_rate_plot.png'))
         plt.close()
