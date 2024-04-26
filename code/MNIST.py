@@ -14,7 +14,7 @@ class MNIST(Dataset):
         self.target_transform = target_transform
         
     def __len__(self):
-        return len(self.data)
+        return self.data_wr.shape[0]
     
     def __getitem__(self, index: int) -> Tuple[Any, Any, Any]:
 

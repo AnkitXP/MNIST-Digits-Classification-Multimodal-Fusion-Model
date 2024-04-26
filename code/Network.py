@@ -12,6 +12,9 @@ class MNIST_Classifier(nn.Module):
 
         self.lstm = nn.LSTM(input_size=116, hidden_size=128, num_layers=2, batch_first=True)
 
+        hidden_size = 128
+        num_classes = 10
+
         self.linear1 = nn.Linear(hidden_size + 116, 256)
         self.linear2 = nn.Linear(256, 128)
         self.linear3 = nn.Linear(128, num_classes)

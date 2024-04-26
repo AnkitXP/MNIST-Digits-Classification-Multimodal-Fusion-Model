@@ -1,9 +1,13 @@
 import os, argparse
 import numpy as np
 from Model import MyModel
-from DataLoader import load_train_data, train_test_split, load_testing_images
+from DataLoader import load_train_data, train_valid_split, load_testing_images
 from Configure import model_configs, training_configs
 from ImageUtils import visualize
+import torch
+
+import warnings
+warnings.filterwarnings('ignore')
 
 def configure():
 	parser = argparse.ArgumentParser()
@@ -21,8 +25,8 @@ def main(args, model_configs):
 		# model.load(checkpoint_path)
 
 		x_train_wr, x_train_sp, y_train = load_train_data(model_configs.data_dir)
-		x_train_wr, x_train_sp, y_train, x_test_wr, x_test_sp, y_test = train_test_split(x_train_wr, x_train_sp, y_train, val_ratio=model_configs.test_ratio)
-		x_train_wr, x_train_sp, y_train, x_valid_wr, x_valid_sp, y_valid = train_test_split(x_train_wr, x_train_sp, y_train, val_ratio=model_configs.val_ratio)
+		x_train_wr, x_train_sp, y_train, x_test_wr, x_test_sp, y_test = train_valid_split(x_train_wr, x_train_sp, y_train, val_ratio=model_configs.test_ratio)
+		x_train_wr, x_train_sp, y_train, x_valid_wr, x_valid_sp, y_valid = train_valid_split(x_train_wr, x_train_sp, y_train, val_ratio=model_configs.val_ratio)
 
 		model.train(x_train_wr, x_train_sp, y_train, training_configs, x_valid_wr, x_valid_sp, y_valid)
 		model.evaluate(x_test_wr, x_test_sp, y_test)
