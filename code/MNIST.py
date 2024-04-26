@@ -14,19 +14,19 @@ class MNIST(Dataset):
         self.target_transform = target_transform
         
     def __len__(self):
-        return self.data_wr.shape[0]
+        return len(self.data_wr)
     
     def __getitem__(self, index: int) -> Tuple[Any, Any, Any]:
 
         wr, sp, target = self.data_wr[index], self.data_sp[index], self.target[index]
 
-        wr = Image.fromarray(wr)
+        # wr = Image.fromarray(wr)
         
         if self.wr_transform is not None:
-            wr = self.transform(wr)
+            wr = self.wr_transform(wr)
 
         if self.sp_transform is not None:
-            sp = self.transform(sp)
+            sp = self.sp_transform(sp)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
