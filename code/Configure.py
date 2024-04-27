@@ -10,8 +10,8 @@ model_configs = dotdict({
 	"save_dir": '../saved_models/',
     "data_dir": '../data/',
     "result_dir": '../results/',
-    "test_ratio": 0.05,
-    "val_ratio": 0.05,
+    "test_ratio": 0.1,
+    "val_ratio": 0.1,
     "num_workers" : 8,     
     "img_size": 32,
     "in_channels": 3,
@@ -23,7 +23,7 @@ model_configs = dotdict({
 })
 
 training_configs = dotdict({
-    "num_epochs": 50,
+    "num_epochs": 20,
 	"learning_rate": 1e-3,
     "batch_size": 64,
     "save_interval": 10,

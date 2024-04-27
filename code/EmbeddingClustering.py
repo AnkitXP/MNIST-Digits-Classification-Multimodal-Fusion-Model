@@ -6,6 +6,7 @@ from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from Configure import model_configs
+from sklearn.metrics import accuracy_score
 
 def compare_embeddings(image_embeddings, audio_embeddings, labels):
 
@@ -36,21 +37,17 @@ def visualize_embeddings(reduced_embeddings, labels, title, savefig):
     plt.legend()
     plt.savefig(model_configs.result_dir + savefig)
 
-# Apply k-means clustering with k=10
 def apply_kmeans(embeddings, k=10):
     kmeans = KMeans(n_clusters=k, random_state=42)
     cluster_labels = kmeans.fit_predict(embeddings)
     return cluster_labels
 
-# Compare clustering results
 def compare_clusters(image_cluster_labels, audio_cluster_labels, labels):
-    image_label_counts = []
-    audio_label_counts = []
-    for label in np.unique(labels):
-        image_label_counts.append(np.sum(image_cluster_labels[labels == label] == label))
-        audio_label_counts.append(np.sum(audio_cluster_labels[labels == label] == label))
     
-    print("Image Cluster Counts per Label:", image_label_counts)
-    print("Audio Cluster Counts per Label:", audio_label_counts)
+    image_accuracy = accuracy_score(labels, image_cluster_labels)
+    audio_accuracy = accuracy_score(labels, audio_cluster_labels)
+    
+    print("Image Cluster Accuracy:", image_accuracy)
+    print("Audio Cluster Accuracy:", audio_accuracy)
 
 
