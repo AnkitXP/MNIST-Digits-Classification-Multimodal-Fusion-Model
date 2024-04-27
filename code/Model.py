@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import math
 from sklearn.metrics import classification_report
+from EmbeddingClustering import compare_embeddings
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -53,6 +54,10 @@ class MyModel(object):
             train_preds_all = []
             train_running_loss = 0
 
+            x_wr_all = []
+            x_sp_all = []
+            enc_labels_all = []
+
             for idx, (train_wr, train_sp, train_labels) in enumerate(tqdm(train_dataloader, position=0, leave=True)):
 
                 current_train_wr = torch.tensor(train_wr, dtype=torch.float32).to(self.model_configs.device)
@@ -61,8 +66,13 @@ class MyModel(object):
 
                 self.optimizer.zero_grad()
 
-                predictions = self.network(current_train_wr, current_train_sp)
+                predictions, x_wr, x_sp = self.network(current_train_wr, current_train_sp)
                 prediction_labels = torch.argmax(predictions, dim=1)
+
+                x_wr_all.append(x_wr.cpu().detach())
+                x_sp_all.append(x_sp.cpu().detach())
+                # print(train_labels.unsqueeze(1).cpu().detach.shape)
+                enc_labels_all.append(train_labels.unsqueeze(1).cpu().detach())
 
                 loss = self.cross_entropy_loss(predictions, current_train_labels)
 
@@ -90,7 +100,7 @@ class MyModel(object):
                     current_validation_sp = torch.tensor(validation_sp, dtype=torch.float32).to(self.model_configs.device)
                     current_validation_labels = torch.tensor(validation_labels, dtype=torch.int64).to(self.model_configs.device)
 
-                    val_predictions = self.network(current_validation_wr, current_validation_sp)
+                    val_predictions, _, _ = self.network(current_validation_wr, current_validation_sp)
                     val_prediction_labels = torch.argmax(val_predictions, dim=1)
 
                     val_labels_all.extend(validation_labels.cpu().detach())
@@ -121,7 +131,7 @@ class MyModel(object):
         stop = timeit.default_timer()
         print(f"Training Time: {stop - start : .2f}s")
         self.plot_metrics(self.model_configs.result_dir, train_loss_history, val_loss_history, train_accuracy_history, val_accuracy_history, learning_rate_history)
-        
+        compare_embeddings(np.concatenate(x_wr_all, axis = 0), np.concatenate(x_sp_all, axis = 0), np.concatenate(enc_labels_all, axis = 0))
 
     def evaluate(self, x_test_wr, x_test_sp, y_test):
 
@@ -139,7 +149,7 @@ class MyModel(object):
                 current_test_sp = torch.tensor(test_sp, dtype=torch.float32).to(self.model_configs.device)
                 current_test_labels = torch.tensor(test_labels, dtype=torch.int64).to(self.model_configs.device)
 
-                test_predictions = self.network(current_test_wr, current_test_sp)
+                test_predictions, _, _ = self.network(current_test_wr, current_test_sp)
                 test_prediction_labels = torch.argmax(test_predictions, dim=1)
 
                 test_labels_all.extend(test_labels.cpu().detach())
@@ -164,7 +174,7 @@ class MyModel(object):
                 current_predict_wr = torch.tensor(x_predict_wr, dtype=torch.float32).to(self.model_configs.device)
                 current_predict_sp = torch.tensor(x_predict_sp, dtype=torch.float32).to(self.model_configs.device)
 
-                probabilities = self.network(current_predict_wr, current_predict_sp)
+                probabilities, _, _ = self.network(current_predict_wr, current_predict_sp)
                 predict_proba_final.extend(probabilities.cpu().detach())
                 
             predict_proba_final = torch.stack(predict_proba_final, axis=0)           

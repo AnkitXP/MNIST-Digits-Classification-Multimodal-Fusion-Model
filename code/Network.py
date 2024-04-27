@@ -11,6 +11,8 @@ class MNIST_Classifier(nn.Module):
         WR_embed = int(input_size * 0.6)
         SP_embed = input_size - WR_embed
 
+
+
         self.wr_encoder = WR_Encoder(WR_embed)
         self.sp_encoder = SP_Encoder(SP_embed)
 
@@ -22,7 +24,9 @@ class MNIST_Classifier(nn.Module):
 
     def forward(self, x_wr, x_sp):
         x_wr = self.wr_encoder(x_wr)
+        # print(f'x_wr: {x_wr.shape}'
         x_sp = self.sp_encoder(x_sp) 
+        # print(f'x_sp: {x_sp.shape}')
         x = torch.cat((x_wr, x_sp), dim=1) 
         lstm_out, _ = self.lstm(x.unsqueeze(1))
         x = torch.cat((x_wr, lstm_out[:, -1, :], x_sp), dim=1)
@@ -31,7 +35,7 @@ class MNIST_Classifier(nn.Module):
         x = self.linear3(x)
         x = F.log_softmax(x)
         
-        return x
+        return x, x_wr, x_sp
 
 class WR_Encoder(nn.Module):
 
